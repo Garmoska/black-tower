@@ -1,0 +1,1 @@
+Extract all the scenes from this PDF and export them in Excel document. The Excel document must contain columns: ID for a scene ID, Text (put here a scene description, Exists (put here IDS of scenes which can be visited after this scene; add conditions if exists), Items (put list of items if they mentioned in the schema description)

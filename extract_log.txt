@@ -1,0 +1,5 @@
+Extraction complete.
+Output file: scene_279_sample.txt
+Original text length: 204 chars
+Fixed text length: 204 chars
+Unmapped characters: 1
