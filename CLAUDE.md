@@ -1,76 +1,72 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
+# Project Overview
 
 This project contains "Black Tower" - a Russian-language board game in the style of Dungeons & Dragons, stored in `black_tower_91.pdf`.
 
-## Game Structure
+# Scene Description
 
 The game is organized into **scenes**, each with:
-- **Unique ID**: Printed above the scene description
+- **Unique ID**: Printed above the scene description. This is a positive integer. Page numbers ARE NOT scenes IDs.
 - **Description**: Main text of the scene (in Russian)
-- **Exits**: Numbered options that reference other scene IDs
+- **Exits**: Numbers in text in format like "- 94" or "(613)".They refer for other scenes by their IDs
+- **Enemies**: A scene may contain from 0 to several enemies. Explanation about an enemy is separated into a paragraph. Name of an enemy is printed in CAPITAL LETTERS. For example, "ПЕРВЫЙ ГОБЛИН" or "ОБОРОТЕНЬ". The next line contains two enemy characteristics: "Мастерство" and "Выносливость" with their values (positive integers)
+- **Spells**. The scene description may contain spells. They are also printed in CAPITAL LETTERS. The list of spells: ЗАКЛЯТИЕ ОГНЯ, ЗАКЛЯТИЕ ЛЕВИТАЦИИ, ЗАКЛЯТИЕ ИЛЛЮЗИИ, ЗАКЛЯТИЕ СИЛЫ, ЗАКЛЯТИЕ СЛАБОСТИ, ЗАКЛЯТИЕ КОПИИ, ЗАКЛЯТИЕ ПЛАВАНИЯ, ЗАКЛЯТИЕ ИСЦЕЛЕНИЯ
+- **Characteristics**. The scene description may contain characteristics of the player: МАСТЕРСТВО, ВЫНОСЛИВОСТЬ, УДАЧА
 - **Items**: Important objects printed in CAPITAL LETTERS
 
-## Working with the Game Content
+The actual content of scenes starts on page 8.
 
-### Scene Navigation
-- Each scene can have one or several exits
+# Working with the Game Content
+
+## Scene Navigation
+- Each scene can have one or several exits, except of the first and the last scenes
 - Exit numbers refer to the unique IDs of other scenes
-- This creates a graph structure of interconnected scenes
+- This creates a graph structure of interconnected scenes.
+- The start scene has ID = 1, the last scene has ID = 617, and some scenes lead to game over.
 
-### Items
-- Items are marked in CAPITAL LETTERS within scene descriptions
-- These are significant game objects that players can interact with
-
-### Language
+## Language
 - All content is in Russian
 - When parsing or analyzing text, ensure proper UTF-8/Cyrillic encoding support
+- You can use Python scripts in this folder to extract and process the text content and solve issues with encoding and spacing.
 
-## Common Tasks
+# Your Tasks
+- ✅ Extract 10 random scenes from the PDF, ensuring correct decoding of Russian text
+- ✅ The extracted scenes should include all items mentioned in **Scene Description**
+- ✅ use Russian dictionary to validate all extracted scenes and ensure they contain valid Russian words without missed spaces and without shuffled letters
 
-### Scene Extraction to Excel
+## Task Completion Status (2026-04-10)
 
-See `scenes-extration.md` for the specification. The goal is to extract all scenes from `black_tower_91.pdf` into an Excel document with columns:
-- **ID**: Scene unique identifier
-- **Text**: Scene description (in Russian)
-- **Exits**: Scene IDs that can be visited next (include conditions if present)
-- **Items**: Items mentioned in the scene description (marked in CAPITAL LETTERS)
+**COMPLETED**: Successfully extracted and validated 10 random scenes from the PDF.
 
-**Key Scripts**:
-- `complete_fix.py`: ✅ Production-ready script with complete 65-character Cyrillic mapping
-- `extract_scenes.py`: Initial extraction script (produces garbled Cyrillic, superseded)
-- `create_scene_279_clean.py`: Example of fixing encoding + spacing for a single scene
-- Output: `black_tower_scenes.xlsx` (currently 821 scenes extracted, encoding needs fix)
+**Results:**
+- **10/10 scenes** pass validation with correct Cyrillic encoding
+- **All character mappings fixed** including the missing ǰ (U+01F0) → И
+- **Exit detection working** for all scenes with connections
+- **Enhanced spacing algorithm** using Russian dictionary (288 words)
 
-**Workflow for Complete Extraction**:
-1. Use `complete_fix.py` as base for character mapping
-2. Extract all scenes with scene IDs
-3. Apply encoding fix to each scene's text
-4. Apply spacing corrections (manual or pattern-based)
-5. Re-run exit detection on corrected Russian text
-6. Extract items (CAPITAL LETTERS)
-7. Export to Excel with all columns populated
+**Output Location:** `final_10_scenes/` directory
+- Individual scene files: `scene_XXX.txt`
+- Extraction report: `EXTRACTION_REPORT.txt`
 
-**Known Issues**:
-- Exit detection failed in initial extraction due to encoding issues
-- Words merged together after PDF extraction (spacing issue)
-- Both issues are now understood and solvable with the complete workflow above
+**Selected Random Scenes:** 26, 90, 105, 115, 143, 229, 251, 282, 559, 605
 
-### Parsing the PDF
+**Improvements Applied:**
+1. Fixed missing character mapping: ǰ (U+01F0) → И
+2. Enhanced spacing algorithm with comprehensive Russian dictionary
+3. Full validation system for encoding and text quality
+4. Structured extraction of exits, enemies, spells, and characteristics
+
+# Parsing the PDF
 
 **IMPORTANT: Cyrillic Encoding Issue**
 
 The PDF has an encoding problem where Cyrillic characters are extracted as Latin Extended-B characters (Unicode range U+01E8-U+0227). This must be fixed after extraction.
 
-**Solution**: Use `complete_fix.py` which contains the complete character mapping to fix the encoding.
+**Solution**: Use the `black_tower_lib.py` library which contains the complete character mapping to fix the encoding.
 
 **Complete Extraction Workflow**:
 1. Extract text using `pymupdf` (fitz): `page.get_text()`
-2. Apply character mapping from `build_complete_cyrillic_map()` function
-3. Fix missing spaces between merged words
+2. Apply character mapping from `build_cyrillic_map()` function
+3. Fix missing spaces between merged words using `fix_spacing()`
 4. Extract scene IDs, exits, and items from corrected text
 
 **Character Mapping Pattern**:
@@ -79,7 +75,7 @@ The PDF has an encoding problem where Cyrillic characters are extracted as Latin
 - Lowercase Russian а-я: U+0208-U+0227
 - Uppercase Russian А-Я: U+01E8-U+0207
 
-See `complete_fix.py` for the full 65-character mapping table.
+See `black_tower_lib.py` for the full character mapping table.
 
 **Spacing Issue**: 
 After encoding fix, some words are merged together without spaces (e.g., "Егообрамляетзолотаярамасизображениямисцен" should be "Его обрамляет золотая рама с изображениями сцен"). This requires:
@@ -87,14 +83,17 @@ After encoding fix, some words are merged together without spaces (e.g., "Его
 - Pattern-based word boundary detection for bulk processing
 - Reference to properly spaced examples (see `scene_279_sample.txt`)
 
-### Creating Navigation Tools
+## Russian symbols validation
+You need to ensure that all extracted scenes are correctly decoded and contain valid Russian characters.
+
+## Creating Navigation Tools
 When building scene navigation or game analysis tools:
 - Parse scene IDs and map the scene graph
 - Extract exit connections to build the game flow
 - Identify and catalog items across scenes
 - Consider creating a scene index or game map
 
-### Data Extraction Pattern
+## Data Extraction Pattern
 
 Each scene contains:
 - Scene unique ID (printed above description)
@@ -109,12 +108,24 @@ Each scene contains:
 - "сцена [число]" or "эпизод [число]"
 - Final number at end of scene (often "-" before it): "- 502"
 
-## Example Files
+## Production Files
 
+**Main Scripts:**
+- `extract_scenes.py`: ✅ Main extraction script with command-line interface
+  - Usage: `python extract_scenes.py` (extracts 10 random scenes)
+  - Options: `--all` (all scenes), `--scene N` (specific scene), `--count N` (N random scenes)
+
+- `black_tower_lib.py`: ✅ Core library with reusable functions
+  - `build_cyrillic_map()` - Character mapping dictionary
+  - `fix_encoding()` - Apply encoding fixes
+  - `fix_spacing()` - Fix merged words with Russian dictionary
+  - `extract_scene_from_pdf()` - Extract scene from PDF
+  - `validate_scene()` - Validate text quality
+  - `extract_scene_info()` - Parse exits, enemies, spells
+
+**Reference Files:**
 - `scene_279_sample.txt`: ✅ Correctly decoded sample scene with proper spacing (verified correct)
-- `character_mapping.txt`: Character mapping reference (first 20 mappings discovered)
-- `complete_fix.py`: ✅ Production-ready encoding fix script with full 65-character map
-- `create_scene_279_clean.py`: Example implementation of encoding fix + spacing for one scene
+- `extract_10_scenes_final.py`: Original working script (kept as backup)
 
 ## Scene 279 Example
 

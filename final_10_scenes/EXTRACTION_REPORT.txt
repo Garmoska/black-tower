@@ -1,0 +1,54 @@
+======================================================================
+FINAL SCENE EXTRACTION REPORT
+======================================================================
+
+Total scenes extracted: 10
+Valid scenes: 10
+Scenes with issues: 0
+
+IMPROVEMENTS APPLIED:
+  1. Fixed character mapping (added ǰ → И)
+  2. Enhanced spacing algorithm with Russian dictionary
+  3. Comprehensive validation
+
+======================================================================
+SCENE DETAILS:
+======================================================================
+
+Scene 26:
+  Status: [VALID]
+  Exits: 341
+
+Scene 90:
+  Status: [VALID]
+
+Scene 105:
+  Status: [VALID]
+  Exits: 413, 425
+
+Scene 115:
+  Status: [VALID]
+  Exits: 424
+
+Scene 143:
+  Status: [VALID]
+
+Scene 229:
+  Status: [VALID]
+  Exits: 180, 334
+
+Scene 251:
+  Status: [VALID]
+
+Scene 282:
+  Status: [VALID]
+  Exits: 368, 536
+
+Scene 559:
+  Status: [VALID]
+  Exits: 13, 184
+
+Scene 605:
+  Status: [VALID]
+  Exits: 169
+

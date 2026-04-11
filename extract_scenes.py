@@ -1,225 +1,173 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Extract scenes from Black Tower PDF and export to Excel.
+Black Tower Scene Extractor
+
+Extracts and processes scenes from black_tower_91.pdf with proper Cyrillic
+encoding and spacing fixes.
+
+Usage:
+    python extract_scenes.py              # Extract 10 random scenes
+    python extract_scenes.py --all        # Extract all scenes
+    python extract_scenes.py --scene 279  # Extract specific scene
 """
 
-import fitz  # PyMuPDF
-import openpyxl
-from openpyxl import Workbook
-import re
-from typing import List, Dict, Optional
+import sys
+import random
+import argparse
+from pathlib import Path
 
-def extract_text_from_pdf(pdf_path: str) -> str:
-    """Extract all text from PDF file."""
-    doc = fitz.open(pdf_path)
-    text = ""
-    for page in doc:
-        text += page.get_text()
-    doc.close()
-    return text
+# Configure Windows console for UTF-8
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 
-def parse_scenes(text: str) -> List[Dict[str, any]]:
-    """
-    Parse scenes from extracted text.
+from black_tower_lib import (
+    build_cyrillic_map,
+    fix_encoding,
+    load_russian_dictionary,
+    fix_spacing,
+    extract_scene_from_pdf,
+    validate_scene,
+    extract_scene_info
+)
 
-    Expected format:
-    - Scene ID on its own line (number)
-    - Scene description
-    - Exits marked with numbers (references to other scene IDs)
-    - Items in CAPITAL LETTERS
-    """
-    scenes = []
 
-    # Split text into potential scene blocks
-    # Look for patterns like standalone numbers followed by text
-    lines = text.split('\n')
+def process_scene(pdf_path, scene_id, char_map, dictionary):
+    """Process a single scene with all fixes."""
+    # Extract from PDF
+    raw_text = extract_scene_from_pdf(pdf_path, scene_id)
 
-    current_scene = None
-    current_text = []
+    if not raw_text:
+        return None
 
-    for i, line in enumerate(lines):
-        line = line.strip()
-        if not line:
-            continue
+    # Apply encoding fix
+    fixed_text, unmapped = fix_encoding(raw_text, char_map)
 
-        # Check if line is a scene ID (standalone number)
-        # Scene IDs are typically short numbers
-        if re.match(r'^\d+$', line) and len(line) <= 4:
-            # Save previous scene if exists
-            if current_scene is not None:
-                current_scene['text'] = ' '.join(current_text).strip()
-                current_scene['items'] = extract_items(current_scene['text'])
-                current_scene['exits'] = extract_exits(current_scene['text'])
-                scenes.append(current_scene)
+    # Apply spacing fix
+    spaced_text = fix_spacing(fixed_text, dictionary)
 
-            # Start new scene
-            current_scene = {
-                'id': line,
-                'text': '',
-                'exits': [],
-                'items': []
-            }
-            current_text = []
-        elif current_scene is not None:
-            # Add to current scene text
-            current_text.append(line)
+    # Validate
+    is_valid, issues = validate_scene(spaced_text)
 
-    # Don't forget the last scene
-    if current_scene is not None:
-        current_scene['text'] = ' '.join(current_text).strip()
-        current_scene['items'] = extract_items(current_scene['text'])
-        current_scene['exits'] = extract_exits(current_scene['text'])
-        scenes.append(current_scene)
+    # Extract info
+    info = extract_scene_info(spaced_text)
 
-    return scenes
-
-def extract_items(text: str) -> List[str]:
-    """
-    Extract items from scene text.
-    Items are marked in CAPITAL LETTERS.
-    """
-    # Find words that are in all caps (2+ chars, Russian or English)
-    # Exclude common Russian words that might be capitalized
-    words = re.findall(r'\b[А-ЯA-Z][А-ЯA-Z]+\b', text)
-
-    # Filter out common non-item words
-    exclude = {'ЕСЛИ', 'ВЫ', 'ВАС', 'ВАМ', 'ВЫ', 'ДА', 'НЕТ', 'ОН', 'ОНА', 'ОНО', 'ОНИ'}
-    items = [w for w in words if w not in exclude and len(w) >= 3]
-
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_items = []
-    for item in items:
-        if item not in seen:
-            seen.add(item)
-            unique_items.append(item)
-
-    return unique_items
-
-def extract_exits(text: str) -> List[str]:
-    """
-    Extract exit information from scene text.
-    Look for patterns like "переходите к X" or numbered choices.
-    """
-    exits = []
-
-    # Pattern 1: "переходите к/на [число]"
-    pattern1 = re.findall(r'переходите\s+(?:к|на)\s+(\d+)', text, re.IGNORECASE)
-    exits.extend(pattern1)
-
-    # Pattern 2: "идите к/на [число]"
-    pattern2 = re.findall(r'идите\s+(?:к|на)\s+(\d+)', text, re.IGNORECASE)
-    exits.extend(pattern2)
-
-    # Pattern 3: Numbered choices like "1) переход к X" or "1 - переход к X"
-    pattern3 = re.findall(r'(?:\d+[\)\.:\-]\s*.*?)(?:переход|идите|к)\s+(?:к|на)?\s*(\d+)', text, re.IGNORECASE)
-    exits.extend(pattern3)
-
-    # Pattern 4: Direct reference like "сцена X" or "эпизод X"
-    pattern4 = re.findall(r'(?:сцен[ау]|эпизод)\s+(\d+)', text, re.IGNORECASE)
-    exits.extend(pattern4)
-
-    # Pattern 5: Look for standalone numbers in context (at end of sentences or in choices)
-    # This is more aggressive and might catch false positives
-    # pattern5 = re.findall(r'[\.;:]\s+(\d{1,3})\s*[\.;]', text)
-    # exits.extend(pattern5)
-
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_exits = []
-    for exit_id in exits:
-        if exit_id not in seen:
-            seen.add(exit_id)
-            unique_exits.append(exit_id)
-
-    return unique_exits
-
-def clean_text_for_excel(text: str) -> str:
-    """
-    Clean text to remove characters that are illegal in Excel.
-    Excel doesn't support control characters and some Unicode ranges.
-    """
-    if not text:
-        return text
-
-    # Remove control characters except tab, newline, carriage return
-    cleaned = ''.join(char for char in text if ord(char) >= 32 or char in '\t\n\r')
-
-    # Try to fix encoding issues - looks like Latin Extended-B instead of Cyrillic
-    # This is a mapping attempt for common issues
-    replacements = {
-        # Map some problematic characters to closest equivalents or remove them
+    return {
+        'id': scene_id,
+        'text': spaced_text,
+        'valid': is_valid,
+        'issues': issues,
+        'info': info,
+        'unmapped': len(unmapped)
     }
 
-    for old, new in replacements.items():
-        cleaned = cleaned.replace(old, new)
 
-    return cleaned
+def save_scene(scene_data, output_dir):
+    """Save scene to file."""
+    scene_id = scene_data['id']
+    output_file = output_dir / f"scene_{scene_id:03d}.txt"
 
-def export_to_excel(scenes: List[Dict], output_path: str):
-    """Export scenes to Excel file."""
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Scenes"
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write("="*70 + "\n")
+        f.write(f"СЦЕНА {scene_id}\n")
+        f.write("="*70 + "\n\n")
+        f.write(scene_data['text'])
+        f.write("\n\n" + "="*70 + "\n")
+        f.write("SCENE INFORMATION:\n")
+        f.write("="*70 + "\n")
 
-    # Write header
-    headers = ['ID', 'Text', 'Exits', 'Items']
-    ws.append(headers)
+        info = scene_data['info']
+        if info['exits']:
+            f.write(f"Exits: {', '.join(info['exits'])}\n")
+        if info['enemies']:
+            f.write(f"Enemies: {', '.join(set(info['enemies']))}\n")
+        if info['spells']:
+            f.write(f"Spells: {', '.join(info['spells'])}\n")
+        if info['characteristics']:
+            f.write(f"Characteristics: {', '.join(info['characteristics'])}\n")
 
-    # Make header bold
-    for cell in ws[1]:
-        cell.font = openpyxl.styles.Font(bold=True)
+        f.write("\n" + "="*70 + "\n")
+        f.write(f"VALIDATION: {'✓ PASSED' if scene_data['valid'] else '✗ ISSUES'}\n")
+        if scene_data['issues']:
+            for issue in scene_data['issues']:
+                f.write(f"  - {issue}\n")
+        if scene_data['unmapped'] > 0:
+            f.write(f"Unmapped characters: {scene_data['unmapped']}\n")
+        f.write("="*70 + "\n")
 
-    # Write data
-    for scene in scenes:
-        ws.append([
-            scene['id'],
-            clean_text_for_excel(scene['text']),
-            ', '.join(scene['exits']) if scene['exits'] else '',
-            ', '.join(scene['items']) if scene['items'] else ''
-        ])
-
-    # Adjust column widths
-    ws.column_dimensions['A'].width = 10  # ID
-    ws.column_dimensions['B'].width = 80  # Text
-    ws.column_dimensions['C'].width = 20  # Exits
-    ws.column_dimensions['D'].width = 30  # Items
-
-    # Enable text wrapping for Text column
-    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=2, max_col=2):
-        for cell in row:
-            cell.alignment = openpyxl.styles.Alignment(wrap_text=True, vertical='top')
-
-    wb.save(output_path)
-    print(f"Exported {len(scenes)} scenes to {output_path}")
 
 def main():
+    parser = argparse.ArgumentParser(description='Extract scenes from Black Tower PDF')
+    parser.add_argument('--scene', type=int, help='Extract specific scene ID')
+    parser.add_argument('--all', action='store_true', help='Extract all scenes')
+    parser.add_argument('--count', type=int, default=10, help='Number of random scenes (default: 10)')
+    parser.add_argument('--output', type=str, default='extracted_scenes', help='Output directory')
+    args = parser.parse_args()
+
+    print("="*70)
+    print("BLACK TOWER SCENE EXTRACTOR")
+    print("="*70)
+
+    # Setup
     pdf_path = "black_tower_91.pdf"
-    output_path = "black_tower_scenes.xlsx"
+    output_dir = Path(args.output)
+    output_dir.mkdir(exist_ok=True)
 
-    print(f"Extracting text from {pdf_path}...")
-    text = extract_text_from_pdf(pdf_path)
+    # Load resources
+    print("\nLoading character mapping...")
+    char_map = build_cyrillic_map()
+    print(f"✓ Character map: {len(char_map)} mappings")
 
-    print(f"Extracted {len(text)} characters")
-    print("(Text contains Cyrillic characters)")
-    print("="*50)
+    print("Loading Russian dictionary...")
+    dictionary = load_russian_dictionary()
+    print(f"✓ Dictionary: {len(dictionary)} words")
 
-    print("Parsing scenes...")
-    scenes = parse_scenes(text)
+    # Determine which scenes to extract
+    if args.scene:
+        scene_ids = [args.scene]
+        print(f"\n→ Extracting scene {args.scene}")
+    elif args.all:
+        scene_ids = list(range(1, 618))
+        print(f"\n→ Extracting all {len(scene_ids)} scenes")
+    else:
+        random.seed(42)
+        scene_ids = sorted(random.sample(range(1, 618), args.count))
+        print(f"\n→ Extracting {args.count} random scenes: {scene_ids}")
 
-    print(f"Found {len(scenes)} scenes")
+    # Process scenes
+    results = []
+    for i, scene_id in enumerate(scene_ids, 1):
+        print(f"\n[{i}/{len(scene_ids)}] Processing scene {scene_id}...", end=' ')
 
-    if scenes:
-        print("\nFirst scene example:")
-        print(f"ID: {scenes[0]['id']}")
-        print(f"Text length: {len(scenes[0]['text'])} characters")
-        print(f"Exits: {scenes[0]['exits']}")
-        print(f"Items: {scenes[0]['items']}")
+        scene_data = process_scene(pdf_path, scene_id, char_map, dictionary)
 
-    print(f"\nExporting to {output_path}...")
-    export_to_excel(scenes, output_path)
-    print("Done!")
+        if scene_data is None:
+            print("✗ NOT FOUND")
+            continue
+
+        # Save scene
+        save_scene(scene_data, output_dir)
+        results.append(scene_data)
+
+        status = "✓" if scene_data['valid'] else "⚠"
+        print(f"{status} Saved")
+
+        if scene_data['info']['exits']:
+            print(f"    Exits: {', '.join(scene_data['info']['exits'])}")
+        if scene_data['info']['enemies']:
+            print(f"    Enemies: {', '.join(set(scene_data['info']['enemies']))}")
+
+    # Summary
+    print(f"\n{'='*70}")
+    print("EXTRACTION COMPLETE")
+    print(f"{'='*70}")
+    print(f"Total scenes extracted: {len(results)}")
+    print(f"Valid scenes: {sum(1 for r in results if r['valid'])}")
+    print(f"Scenes with issues: {sum(1 for r in results if not r['valid'])}")
+    print(f"Output directory: {output_dir}/")
+    print(f"{'='*70}")
+
 
 if __name__ == "__main__":
     main()

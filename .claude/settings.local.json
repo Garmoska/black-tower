@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(python:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(ls -lh *.py)",
+      "Bash(ls *.py)",
+      "Bash(ls scenes/*.txt)",
+      "Bash(ls -lh scenes/*.txt)",
+      "Bash(wc -l scenes/*.txt)",
+      "Bash(cat scenes/scene_*.txt)"
     ]
   }
 }
