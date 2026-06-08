@@ -8,7 +8,22 @@
       "Bash(ls scenes/*.txt)",
       "Bash(ls -lh scenes/*.txt)",
       "Bash(wc -l scenes/*.txt)",
-      "Bash(cat scenes/scene_*.txt)"
+      "Bash(cat scenes/scene_*.txt)",
+      "Bash(grep -nE \"^[0-9]+$\" c:/Leonov/black-tower/black-tower.txt)",
+      "Bash(grep -nE \"^[А-ЯЁ]+\\( [А-ЯЁ]+\\)*$\" c:/Leonov/black-tower/black-tower.txt)",
+      "Bash(grep -nE \"^ *[А-ЯЁ]+\\( [А-ЯЁ]+\\)*$\" c:/Leonov/black-tower/black-tower.txt)",
+      "Bash(awk -F'[: ]' 'NR==FNR && /^[0-9]+$/ {print NR, $0}' c:/Leonov/black-tower/black-tower.txt)",
+      "Bash(timeout 3)",
+      "Bash(.venv/Scripts/python.exe -c \"import openpyxl, docx; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/pip.exe install *)",
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(.venv/Scripts/python.exe extract_scenes_en.py)",
+      "Bash(pip list *)",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe *)",
+      "Bash(grep -E \"\\\\.\\(py|xlsx|docx\\)$\")",
+      "Bash(.venv/Scripts/python extract_scenes_en.py black-tower-en.docx)",
+      "Bash(.venv/Scripts/python *)"
     ]
   }
 }
