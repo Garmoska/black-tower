@@ -124,6 +124,17 @@ ABS_BARE = re.compile(r"(?<![\w.,\-+(])\b(\d{1,3})\s*;")
 REL_OFFSET = re.compile(r"\(\s*\+\s*(\d+)\s*\)")
 ITEM_CODE = re.compile(r"\(\s*-\s*(\d+)\s*\)")
 
+ABS_PATTERNS = (ABS_PAREN, ABS_DASH, ABS_TRAIL, ABS_INTRO, ABS_BARE)
+
+# Scene-specific exit overrides: where an item code "(- N)" also functions
+# as a navigable exit (e.g. when handing the item over advances the story).
+EXIT_OVERRIDES: dict[int, list[str]] = {
+    296: ["223"],
+}
+NOTE_OVERRIDES: dict[int, list[str]] = {
+    520: ["relative -25"],
+}
+
 
 def extract_exits(text: str) -> tuple[list[str], list[str]]:
     """Return (exits, notes).
@@ -151,32 +162,10 @@ def extract_exits(text: str) -> tuple[list[str], list[str]]:
             seen.add(num_str)
             found.append(num_str)
 
-    for m in ABS_PAREN.finditer(text):
-        if in_skip(m.span()):
-            continue
-        add(m.group(1))
-
-    for m in ABS_DASH.finditer(text):
-        if in_skip(m.span()):
-            continue
-        add(m.group(1))
-
-    for m in ABS_TRAIL.finditer(text):
-        if in_skip(m.span()):
-            continue
-        add(m.group(1))
-
-    for m in ABS_INTRO.finditer(text):
-        if in_skip(m.span()):
-            continue
-        add(m.group(1))
-
-    # Pattern 3: bare numbers followed by a semicolon, e.g. the first
-    # branch of "...then 463; if not - 593."
-    for m in ABS_BARE.finditer(text):
-        if in_skip(m.span()):
-            continue
-        add(m.group(1))
+    for pattern in ABS_PATTERNS:
+        for m in pattern.finditer(text):
+            if not in_skip(m.span()):
+                add(m.group(1))
 
     return found, notes
 
@@ -233,7 +222,7 @@ def extract_enemies(text: str) -> list[str]:
 ITEM_PATTERN = re.compile(
     r"((?:[A-Za-z]+(?:['’]s)?(?:-[A-Za-z]+)?\s+){0,3}"
     r"[A-Za-z]+(?:['’]s)?(?:-[A-Za-z]+)?)"
-    r"\s*\(\s*[+\-]\s*(\d+)\s*\)"
+    r"\s*\(\s*([+\-])\s*(\d+)\s*\)"
 )
 
 STOP_WORDS = {
@@ -262,11 +251,7 @@ def extract_items(text: str) -> list[str]:
     items: list[str] = []
     seen: set[str] = set()
     for m in ITEM_PATTERN.finditer(text):
-        phrase = " ".join(m.group(1).split())
-        sign_match = re.search(r"\(\s*([+\-])\s*\d+", text[m.start() : m.end()])
-        sign = sign_match.group(1) if sign_match else "-"
-        offset = m.group(2)
-
+        phrase, sign, offset = m.group(1), m.group(2), m.group(3)
         words = phrase.split()
         while words and words[0].lower() in STOP_WORDS:
             words.pop(0)
@@ -294,15 +279,6 @@ def write_excel(scenes: list[Scene], path: Path) -> None:
         cell = ws.cell(row=1, column=col_idx)
         cell.font = Font(bold=True)
         cell.alignment = Alignment(vertical="top")
-
-    # Scene-specific exit overrides: where an item code "(- N)" also functions
-    # as a navigable exit (e.g. when handing the item over advances the story).
-    EXIT_OVERRIDES: dict[int, list[str]] = {
-        296: ["223"],
-    }
-    NOTE_OVERRIDES: dict[int, list[str]] = {
-        520: ["relative -25"],
-    }
 
     for scene in scenes:
         text = scene.text
@@ -351,7 +327,7 @@ def main() -> None:
         print(f"Error: File '{input_path}' not found")
         sys.exit(1)
 
-    if not input_path.suffix.lower() == ".docx":
+    if input_path.suffix.lower() != ".docx":
         print(f"Error: Input file must be a .docx file")
         sys.exit(1)
 
